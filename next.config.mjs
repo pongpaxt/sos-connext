@@ -6,7 +6,10 @@ const nextConfig = withPWA({
   skipWaiting: true,
   disable: process.env.NODE_ENV === 'development',
 })({
-  // ถ้ามี config เดิมอยู่ให้ใส่ตรงนี้
+  // เพิ่มบรรทัดนี้เพื่อป้องกัน Error เรื่อง Turbopack
+  webpack: (config) => {
+    return config;
+  },
 });
 
 export default nextConfig;
