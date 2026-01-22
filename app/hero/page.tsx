@@ -29,21 +29,44 @@ export default function HeroDashboard() {
             const unsubscribe = onSnapshot(q, (querySnapshot) => {
                 const data: any[] = [];
                 querySnapshot.forEach((doc) => {
-                    const items = doc.data().items;
-                    let priority = 3, label = "ปกติ";
-                    if (items.medicine > 0) { priority = 1; label = "วิกฤต (ต้องการยา)"; }
-                    else if (items.battery > 0) { priority = 2; label = "เร่งด่วน (แบตหมด)"; }
-                    data.push({ id: doc.id, ...doc.data(), priority, priorityLabel: label });
+                    const dataDoc = doc.data();
+                    const items = dataDoc.items;
+                    
+                    let priority = 3; 
+                    let label = "ปกติ";
+                    let colorClass = "bg-blue-600"; 
+
+                    if (items.medicine > 0) { 
+                        priority = 1; 
+                        label = "วิกฤต"; 
+                        colorClass = "bg-red-600"; 
+                    } 
+                    else if (items.battery > 0) { 
+                        priority = 2; 
+                        label = "เร่งด่วน"; 
+                        colorClass = "bg-yellow-500"; 
+                    }
+                    else {
+                        priority = 3;
+                        label = "ปกติ";
+                        colorClass = "bg-blue-600";
+                    }
+
+                    data.push({ 
+                        id: doc.id, 
+                        ...dataDoc, 
+                        priority, 
+                        priorityLabel: label,
+                        priorityColor: colorClass 
+                    });
                 });
 
-                // --- Plan B: เล่นเสียงเมื่อมีเคสใหม่เด้งเข้ามา ---
                 if (data.length > prevCount && prevCount !== 0) {
                     const audio = new Audio('alert.mp3');
                     audio.play().catch(() => console.log("Audio play blocked"));
                 }
                 setPrevCount(data.length);
 
-                // --- Plan C: จัดลำดับ Priority เอาเคสวิกฤตไว้บนสุด ---
                 const sorted = data.sort((a, b) => {
                     if (a.status === 'completed' && b.status === 'pending') return 1;
                     if (a.status === 'pending' && b.status === 'completed') return -1;
@@ -54,6 +77,29 @@ export default function HeroDashboard() {
             return () => unsubscribe();
         }
     }, [isAuthorized, prevCount]);
+
+    // --- ✨ ฟังก์ชันใหม่: ลบรายการที่สำเร็จแล้วทั้งหมด ---
+    const deleteCompletedRequests = async () => {
+        const completedItems = requests.filter(r => r.status === 'completed');
+        
+        if (completedItems.length === 0) {
+            alert("ไม่มีรายการที่สำเร็จแล้วให้ลบ");
+            return;
+        }
+
+        if (confirm(`⚠️ ยืนยันการลบรายการที่สำเร็จแล้วทั้งหมด ${completedItems.length} รายการถาวร?`)) {
+            try {
+                const deletePromises = completedItems.map(req => 
+                    deleteDoc(doc(db, "requests", req.id))
+                );
+                await Promise.all(deletePromises);
+                alert("ล้างข้อมูลสำเร็จเรียบร้อย");
+            } catch (error) {
+                console.error("Delete error:", error);
+                alert("เกิดข้อผิดพลาดในการลบ");
+            }
+        }
+    };
 
     const handleLogin = (e: any) => { 
         e.preventDefault(); 
@@ -121,23 +167,42 @@ export default function HeroDashboard() {
                 <HeroMap requests={requests} />
             </section>
 
-            <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tighter italic">Pending List</h2>
-                <div className="flex bg-slate-200 p-1 rounded-xl">
-                    {(['all', 'pending', 'completed'] as const).map(s => (
-                        <button key={s} onClick={() => setFilterStatus(s)} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${filterStatus === s ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}>{s === 'all' ? 'ทั้งหมด' : s === 'pending' ? 'รอช่วย' : 'สำเร็จ'}</button>
-                    ))}
+            {/* --- ✨ ส่วนหัวรายการที่มีปุ่มล้างข้อมูล --- */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tighter italic">Case Dashboard</h2>
+                <div className="flex items-center gap-3">
+                    <button 
+                        onClick={deleteCompletedRequests}
+                        className="flex items-center gap-2 bg-red-50 text-red-600 px-4 py-2 rounded-xl text-xs font-bold hover:bg-red-100 transition-all border border-red-100"
+                    >
+                        <Trash2 size={14} /> ล้างเคสที่สำเร็จ
+                    </button>
+                    <div className="flex bg-slate-200 p-1 rounded-xl">
+                        {(['all', 'pending', 'completed'] as const).map(s => (
+                            <button key={s} onClick={() => setFilterStatus(s)} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${filterStatus === s ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}>{s === 'all' ? 'ทั้งหมด' : s === 'pending' ? 'รอช่วย' : 'สำเร็จ'}</button>
+                        ))}
+                    </div>
                 </div>
             </div>
 
             <div className="grid gap-4">
                 {requests.filter(r => filterStatus==='all'?true:r.status===filterStatus).map((req) => (
-                    <div key={req.id} className={`bg-white p-6 rounded-[28px] border-2 transition-all ${req.status==='completed'?'opacity-60 border-transparent':req.priority===1?'border-red-500 shadow-lg shadow-red-200 animate-in fade-in zoom-in':'border-blue-100 shadow-sm'}`}>
+                    <div key={req.id} className={`bg-white p-6 rounded-[28px] border-2 transition-all 
+                        ${req.status === 'completed' 
+                            ? 'opacity-60 border-transparent shadow-none' 
+                            : req.priority === 1 
+                                ? 'border-red-500 shadow-lg shadow-red-100' 
+                                : req.priority === 2 
+                                    ? 'border-yellow-400 shadow-md shadow-yellow-50' 
+                                    : 'border-blue-100 shadow-sm'}`}>
+                        
                         <div className="flex flex-col md:flex-row justify-between gap-4">
                             <div className="flex-1">
                                 <div className="flex items-center gap-3 mb-3">
-                                    <span className={`px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1 ${req.status==='completed'?'bg-slate-100 text-slate-500':req.priority===1?'bg-red-600 text-white animate-pulse':'bg-blue-600 text-white'}`}>
-                                        {req.status==='completed'?'✓ สำเร็จ':<><AlertCircle size={12}/>{req.priorityLabel}</>}
+                                    <span className={`px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1 text-white
+                                        ${req.status === 'completed' ? 'bg-slate-400' : req.priorityColor} 
+                                        ${req.priority === 1 && req.status !== 'completed' ? 'animate-pulse' : ''}`}>
+                                        {req.status === 'completed' ? '✓ สำเร็จ' : <><AlertCircle size={12}/>{req.priorityLabel}</>}
                                     </span>
                                     <span className="text-[10px] font-mono text-slate-400">ID: {req.id.slice(-6).toUpperCase()}</span>
                                 </div>
