@@ -1,109 +1,101 @@
 "use client";
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
-import 'leaflet/dist/leaflet.css';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import { useEffect } from 'react';
 
-// ฟังก์ชันสร้าง Custom Icon ตามสี
-const createCustomIcon = (color: string, opacity: number = 1) => {
-  return new L.DivIcon({
-    className: 'custom-div-icon',
-    html: `<div style="
-      background-color: ${color}; 
-      width: 24px; 
-      height: 24px; 
-      border-radius: 50% 50% 50% 0; 
-      transform: rotate(-45deg); 
-      border: 2px solid white;
-      box-shadow: 0 0 10px rgba(0,0,0,0.3);
-      opacity: ${opacity};
-    "></div>`,
-    iconSize: [24, 24],
-    iconAnchor: [12, 24],
-    popupAnchor: [0, -24]
-  });
-};
+// --- สร้าง Icon แยกสี ---
+// หมุดคำขอ (สีแดง/น้ำเงินปกติ)
+const requestIcon = new L.Icon({
+    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowSize: [41, 41]
+});
 
-// เตรียม Icon สำหรับสถานะต่างๆ
-const redIcon = createCustomIcon('#dc2626');    // วิกฤต (แดง)
-const yellowIcon = createCustomIcon('#facc15'); // เร่งด่วน (เหลือง)
-const blueIcon = createCustomIcon('#2563eb');   // ปกติ (น้ำเงิน)
-const grayIcon = createCustomIcon('#94a3b8', 0.6); // สำเร็จแล้ว (เทา/จาง)
+// หมุดศูนย์พักพิง (สีเขียว) ✨
+const shelterIcon = new L.Icon({
+    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowSize: [41, 41]
+});
 
-export default function HeroMap({ requests }: { requests: any[] }) {
-  // พิกัดกลาง (กรณีไม่มีข้อมูลให้เริ่มที่กรุงเทพ)
-  const defaultCenter: [number, number] = [13.7563, 100.5018];
+// ส่วนจัดการการซูมเมื่อพิกัดเปลี่ยน
+function RecenterMap({ lat, lng }: { lat: number, lng: number }) {
+    const map = useMap();
+    useEffect(() => {
+        if (lat && lng) map.setView([lat, lng], 13);
+    }, [lat, lng, map]);
+    return null;
+}
 
-  return (
-    <div className="h-[400px] w-full z-0 relative">
-      <MapContainer 
-        center={defaultCenter} 
-        zoom={6} 
-        scrollWheelZoom={true} 
-        className="h-full w-full rounded-[28px]"
-      >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
-        
-        {requests.map((req) => {
-          // --- Logic การเลือกสีหมุดให้ตรงกับ Dashboard ---
-          let markerIcon = blueIcon;
+interface HeroMapProps {
+    requests: any[];
+    shelters: any[]; // รับพารามิเตอร์ shelters เพิ่มเข้ามา
+}
 
-          if (req.status === 'completed') {
-            markerIcon = grayIcon; // ถ้าสำเร็จแล้วให้เป็นสีเทาจางๆ จะได้ไม่กวนสายตา
-          } else if (req.priority === 1) {
-            markerIcon = redIcon;    // วิกฤต
-          } else if (req.priority === 2) {
-            markerIcon = yellowIcon; // เร่งด่วน
-          } else {
-            markerIcon = blueIcon;   // ปกติ
-          }
+export default function HeroMap({ requests, shelters = [] }: HeroMapProps) {
+    const defaultPos: [number, number] = [13.7563, 100.5018]; // กรุงเทพฯ
 
-          return (
-            <Marker 
-              key={req.id} 
-              position={[req.location.lat, req.location.lng]} 
-              icon={markerIcon}
-            >
-              <Popup>
-                <div className="font-sans p-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className={`w-3 h-3 rounded-full ${
-                      req.status === 'completed' ? 'bg-slate-400' : 
-                      req.priority === 1 ? 'bg-red-600 animate-pulse' : 
-                      req.priority === 2 ? 'bg-yellow-500' : 'bg-blue-600'
-                    }`}></span>
-                    <p className="font-black text-sm text-slate-800 m-0">
-                      {req.status === 'completed' ? 'ช่วยสำเร็จแล้ว' : req.priorityLabel}
-                    </p>
-                  </div>
-                  
-                  <p className="text-xs font-bold text-blue-600 mb-1">📞 {req.phone}</p>
-                  <hr className="my-2 border-slate-100"/>
-                  
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">รายการที่ขอ:</p>
-                  <ul className="text-[11px] list-none p-0 m-0 space-y-1">
-                    {req.items.water > 0 && <li className="flex justify-between"><span>น้ำดื่ม:</span> <b>{req.items.water}</b></li>}
-                    {req.items.food > 0 && <li className="flex justify-between"><span>อาหาร:</span> <b>{req.items.food}</b></li>}
-                    {req.items.battery > 0 && <li className="flex justify-between"><span>แบตสำรอง:</span> <b>{req.items.battery}</b></li>}
-                    {req.items.medicine > 0 && <li className="flex justify-between text-red-600"><span>ยา:</span> <b>{req.items.medicine}</b></li>}
-                  </ul>
+    return (
+        <div className="h-[450px] w-full rounded-2xl overflow-hidden z-0">
+            <MapContainer center={defaultPos} zoom={6} style={{ height: '100%', width: '100%' }}>
+                <TileLayer
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                />
 
-                  <a 
-                    href={`https://www.google.com/maps?q=${req.location.lat},${req.location.lng}`} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="block mt-3 text-center bg-slate-800 text-white text-[10px] py-2 rounded-lg font-bold hover:bg-black transition-colors"
-                  >
-                    เปิดใน Google Maps
-                  </a>
-                </div>
-              </Popup>
-            </Marker>
-          );
-        })}
-      </MapContainer>
-    </div>
-  );
+                {/* --- 1. แสดงหมุดคำขอความช่วยเหลือ (Requests) --- */}
+                {requests.map((req) => (
+                    req.location && (
+                        <Marker 
+                            key={req.id} 
+                            position={[req.location.lat, req.location.lng]}
+                            icon={requestIcon}
+                        >
+                            <Popup>
+                                <div className="font-sans">
+                                    <p className="font-bold text-red-600">เคสขอความช่วยเหลือ</p>
+                                    <p className="text-xs">โทร: {req.phone}</p>
+                                    <p className="text-xs font-bold">สถานะ: {req.status}</p>
+                                </div>
+                            </Popup>
+                        </Marker>
+                    )
+                ))}
+
+                {/* --- 2. แสดงหมุดศูนย์พักพิง (Shelters) สีเขียว ✨ --- */}
+                {shelters.map((shelter) => (
+                    shelter.location && (
+                        <Marker 
+                            key={shelter.id} 
+                            position={[shelter.location.lat, shelter.location.lng]}
+                            icon={shelterIcon}
+                        >
+                            <Popup>
+                                <div className="font-sans">
+                                    <p className="font-bold text-green-700">🏠 ศูนย์พักพิง: {shelter.name}</p>
+                                    <p className="text-[10px] text-slate-500">พิกัด: {shelter.location.lat.toFixed(4)}, {shelter.location.lng.toFixed(4)}</p>
+                                    <a 
+                                        href={`https://www.google.com/maps?q=${shelter.location.lat},${shelter.location.lng}`} 
+                                        target="_blank"
+                                        className="text-blue-500 text-xs underline block mt-1"
+                                    >
+                                        เปิดใน Google Maps
+                                    </a>
+                                </div>
+                            </Popup>
+                        </Marker>
+                    )
+                ))}
+
+                <RecenterMap lat={requests[0]?.location?.lat} lng={requests[0]?.location?.lng} />
+            </MapContainer>
+        </div>
+    );
 }
