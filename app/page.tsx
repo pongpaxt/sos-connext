@@ -41,7 +41,8 @@ const translations = {
     modalSub: "กู้ภัยจะได้รับพิกัดของคุณทันที",
     modalConfirm: "ใช่, ส่งตอนนี้!",
     modalCancel: "ยกเลิก",
-    addPhoto: "เพิ่มรูปภาพ"
+    addPhoto: "เพิ่มรูปภาพ",
+    offlineNotice: "ไม่พบสัญญาณอินเทอร์เน็ต ระบบจะส่งขอความช่วยเหลือผ่าน SMS แทน"
   },
   en: {
     statusLabel: "Help Status",
@@ -70,7 +71,8 @@ const translations = {
     modalSub: "Rescuers will receive your location immediately.",
     modalConfirm: "Yes, Send Now!",
     modalCancel: "Cancel",
-    addPhoto: "Add Photo"
+    addPhoto: "Add Photo",
+    offlineNotice: "No internet connection. Switching to SMS help request."
   }
 };
 
@@ -113,7 +115,12 @@ export default function SOSPage() {
   };
 
   useEffect(() => {
+    // Update online status
+    const handleStatus = () => setIsOnline(navigator.onLine);
+    window.addEventListener('online', handleStatus);
+    window.addEventListener('offline', handleStatus);
     setIsOnline(navigator.onLine);
+
     const savedPhone = localStorage.getItem("userPhone");
     if (savedPhone) { setPhoneNumber(savedPhone); setIsLoggedIn(true); }
 
@@ -130,7 +137,11 @@ export default function SOSPage() {
       setShelters(shelterData);
     });
 
-    return () => unsubShelters();
+    return () => {
+        unsubShelters();
+        window.removeEventListener('online', handleStatus);
+        window.removeEventListener('offline', handleStatus);
+    }
   }, []);
 
   const sortedShelters = useMemo(() => {
@@ -178,6 +189,29 @@ export default function SOSPage() {
   const confirmSend = async () => {
     if (hasPendingRequest || !location) return;
     setIsSending(true);
+
+    // --- LOGIC: OFFLINE SMS FALLBACK ---
+    if (!navigator.onLine) {
+        const SOS_NUMBER = "0822654210"; // เบอร์ศูนย์กู้ภัย
+        const mapsUrl = `https://www.google.com/maps?q=${location.lat},${location.lng}`;
+        const activeNeeds = Object.entries(needs).filter(([_, v]) => v).map(([k]) => k).join(", ");
+        
+        const smsMessage = `SOS! ช่วยเหลือด่วน\nพิกัด: ${mapsUrl}\nระดับ: ${severity}\nเบอร์: ${phoneNumber}\nต้องการ: ${activeNeeds}\nเพิ่มเติม: ${note}`;
+
+        alert(t.offlineNotice);
+        
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        const smsUrl = isIOS 
+            ? `sms:${SOS_NUMBER}&body=${encodeURIComponent(smsMessage)}` 
+            : `sms:${SOS_NUMBER}?body=${encodeURIComponent(smsMessage)}`;
+
+        window.location.href = smsUrl;
+        setIsSending(false);
+        setShowConfirm(false);
+        return;
+    }
+
+    // --- LOGIC: ONLINE FIREBASE UPLOAD ---
     try {
       const imageUrls = await uploadImages();
       await addDoc(collection(db, "requests"), {
@@ -188,7 +222,11 @@ export default function SOSPage() {
         timestamp: serverTimestamp(),
       });
       setImageFiles([]); setPreviewUrls([]); setNote(""); setShowConfirm(false);
-    } catch (e: any) { alert(e.message); } finally { setIsSending(false); }
+    } catch (e: any) { 
+        alert(e.message); 
+    } finally { 
+        setIsSending(false); 
+    }
   };
 
   if (!isLoggedIn) {
@@ -221,7 +259,7 @@ export default function SOSPage() {
               <button key={l} onClick={() => setLang(l)} className={`px-3 py-1 rounded-lg text-[10px] font-black transition-all ${lang === l ? 'bg-yellow-500 text-black' : 'text-zinc-500'}`}>{l.toUpperCase()}</button>
             ))}
           </div>
-          <div className={`px-4 py-1.5 rounded-full text-[9px] font-black border-2 ${isOnline ? "bg-green-500/10 text-green-500 border-green-500/20" : "bg-red-500/10 text-red-500 border-red-500/20"}`}>
+          <div className={`px-4 py-1.5 rounded-full text-[9px] font-black border-2 transition-colors ${isOnline ? "bg-green-500/10 text-green-500 border-green-500/20" : "bg-red-500/10 text-red-500 border-red-500/20"}`}>
             {isOnline ? "• ONLINE" : "• OFFLINE"}
           </div>
         </div>
@@ -268,7 +306,7 @@ export default function SOSPage() {
                 <span className="text-[10px] font-black bg-zinc-900 text-green-400 px-3 py-1 rounded-full border border-zinc-700">{s.distance} km</span>
               </div>
               <h4 className="font-black text-sm mb-3 text-zinc-100 line-clamp-1">{s.name}</h4>
-              <a href={`https://www.google.com/maps/dir/?api=1&destination=${s.location.lat},${s.location.lng}`} target="_blank" rel="noopener noreferrer" className="w-full bg-zinc-700/50 py-2.5 rounded-xl flex items-center justify-center gap-2 text-[10px] font-black uppercase hover:bg-yellow-500 hover:text-black transition-all">
+              <a href={`https://www.google.com/maps?q=${s.location.lat},${s.location.lng}`} target="_blank" rel="noopener noreferrer" className="w-full bg-zinc-700/50 py-2.5 rounded-xl flex items-center justify-center gap-2 text-[10px] font-black uppercase hover:bg-yellow-500 hover:text-black transition-all">
                 <Navigation size={12} /> GO
               </a>
             </div>
@@ -354,7 +392,9 @@ export default function SOSPage() {
             <h2 className="text-3xl font-black mb-4 tracking-tight uppercase">{t.modalTitle}</h2>
             <p className="text-zinc-400 text-sm mb-10 leading-relaxed font-medium">{t.modalSub}</p>
             <div className="space-y-4">
-              <button disabled={isSending} onClick={confirmSend} className="w-full bg-red-600 py-6 rounded-[24px] font-black text-2xl shadow-xl active:scale-95 transition-all">{t.modalConfirm}</button>
+              <button disabled={isSending} onClick={confirmSend} className="w-full bg-red-600 py-6 rounded-[24px] font-black text-2xl shadow-xl active:scale-95 transition-all">
+                  {!isOnline ? "ส่งผ่าน SMS" : t.modalConfirm}
+              </button>
               <button onClick={() => setShowConfirm(false)} className="w-full bg-zinc-700/50 py-5 rounded-[24px] font-bold text-zinc-400">{t.modalCancel}</button>
             </div>
           </div>
