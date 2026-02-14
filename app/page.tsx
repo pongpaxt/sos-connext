@@ -234,7 +234,7 @@ export default function SOSPage() {
       <div className="min-h-screen bg-zinc-900 text-white flex items-center justify-center p-6 text-center">
         <div className="w-full max-w-md bg-zinc-800 p-8 rounded-[40px] border border-zinc-700 shadow-2xl">
           <div className="bg-yellow-500 w-20 h-20 rounded-3xl flex items-center justify-center text-black mx-auto mb-6 shadow-lg shadow-yellow-500/20"><Phone size={40} /></div>
-          <h1 className="text-4xl font-black text-yellow-500 mb-2 italic tracking-tighter uppercase">SOS_Connect</h1>
+          <h1 className="text-4xl font-black text-yellow-500 mb-2 italic tracking-tighter uppercase">SOS_Connext</h1>
           <p className="text-zinc-500 text-sm mb-8 font-bold">Register with phone number</p>
           <form onSubmit={(e) => { e.preventDefault(); if (phoneNumber.length >= 10) { localStorage.setItem("userPhone", phoneNumber); setIsLoggedIn(true); } }} className="space-y-4">
             <input type="tel" placeholder="08X-XXX-XXXX" className="w-full bg-zinc-900 border border-zinc-600 p-5 rounded-2xl text-2xl text-center outline-none focus:border-yellow-500 transition-all font-mono" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} required />
