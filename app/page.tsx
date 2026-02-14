@@ -250,7 +250,7 @@ export default function SOSPage() {
       {/* Header & Language Switch */}
       <div className="w-full flex justify-between items-start mb-8">
         <div>
-          <h1 className="text-2xl font-black text-yellow-500 italic uppercase tracking-tight">SOS_Connext</h1>
+          <h1 className="text-2xl font-black text-yellow-500 italic uppercase tracking-tight">SOS_Connect</h1>
           <div className="flex items-center gap-1 text-[11px] text-zinc-500 font-bold mt-1 tracking-wider"><UserCircle size={14} className="text-yellow-500/50" /> {phoneNumber}</div>
         </div>
         <div className="flex flex-col items-end gap-2">
